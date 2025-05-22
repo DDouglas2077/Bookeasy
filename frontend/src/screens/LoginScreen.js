@@ -1,75 +1,71 @@
-// src/screens/LoginScreen.js
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, Alert, StyleSheet } from 'react-native';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../utils/firebase';
+import { View, StyleSheet, Alert } from 'react-native';
+import { TextInput, Button, Title } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_URL = 'http://192.168.1.11:3000/api'; 
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Todos los campos son obligatorios');
-      return;
-    }
-
+  const login = async () => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigation.replace('Home'); // Reemplaza para que no vuelva atrás con "volver"
-    } catch (error) {
-      Alert.alert('Error', 'Credenciales incorrectas o cuenta inexistente');
+      const response = await fetch(`${API_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return Alert.alert('Error', data.error || 'No se pudo iniciar sesión');
+      }
+
+      await AsyncStorage.setItem('token', data.token);
+      navigation.replace('Home');
+    } catch (err) {
+      Alert.alert('Error de conexión', err.message);
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Iniciar Sesión</Text>
+      <Title style={styles.title}>Iniciar Sesión</Title>
+
       <TextInput
-        style={styles.input}
-        placeholder="Correo electrónico"
-        keyboardType="email-address"
+        label="Correo"
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
-      />
-      <TextInput
+        keyboardType="email-address"
         style={styles.input}
-        placeholder="Contraseña"
-        secureTextEntry
+      />
+
+      <TextInput
+        label="Contraseña"
         value={password}
         onChangeText={setPassword}
+        secureTextEntry
+        style={styles.input}
       />
-      <Button title="Ingresar" onPress={handleLogin} />
-      <Text style={styles.link} onPress={() => navigation.navigate('Register')}>
-        ¿No tienes cuenta? Regístrate aquí
-      </Text>
+
+      <Button mode="contained" onPress={login} style={styles.button}>
+        Entrar
+      </Button>
+
+      <Button onPress={() => navigation.navigate('Register')} style={styles.link}>
+        ¿No tienes cuenta? Regístrate
+      </Button>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'center'
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
-    textAlign: 'center'
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12
-  },
-  link: {
-    marginTop: 20,
-    textAlign: 'center',
-    color: 'blue'
-  }
+  container: { flex: 1, justifyContent: 'center', padding: 20 },
+  title: { marginBottom: 20, textAlign: 'center' },
+  input: { marginBottom: 15 },
+  button: { marginTop: 10 },
+  link: { marginTop: 10, alignSelf: 'center' },
 });
