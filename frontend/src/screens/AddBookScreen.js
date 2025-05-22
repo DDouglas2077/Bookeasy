@@ -8,8 +8,11 @@ import {
   Alert,
   Platform
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+
+const API_URL = 'http://192.168.1.11:3000/api';
 
 export default function AddBookScreen({ navigation }) {
   const [title, setTitle] = useState('');
@@ -27,27 +30,32 @@ export default function AddBookScreen({ navigation }) {
       return;
     }
 
-    if (!auth.currentUser) {
-      Alert.alert('Error', 'No hay usuario autenticado.');
-      return;
-    }
+    const token = await AsyncStorage.getItem('token');
 
     try {
-      await addDoc(collection(db, 'books'), {
-        uid: auth.currentUser.uid,
-        title,
-        author,
-        status,
-        startDate: startDate || null,
-        endDate: endDate || null,
-        comment: comment || ''
+      const res = await fetch(`${API_URL}/books`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title,
+          author,
+          status,
+          startDate,
+          endDate,
+          comment
+        })
       });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al guardar');
 
       Alert.alert('Libro agregado correctamente');
       navigation.goBack();
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'No se pudo guardar el libro');
+      Alert.alert('Error', error.message);
     }
   };
 
@@ -76,43 +84,39 @@ export default function AddBookScreen({ navigation }) {
         <Picker.Item label="Completado" value="completado" />
       </Picker>
 
-      <View>
-        <Text style={styles.label}>Fecha de inicio:</Text>
-        <Button
-          title={startDate ? startDate.toDateString() : 'Seleccionar fecha de inicio'}
-          onPress={() => setShowStartPicker(true)}
+      <Text style={styles.label}>Fecha de inicio:</Text>
+      <Button
+        title={startDate ? startDate.toDateString() : 'Seleccionar fecha de inicio'}
+        onPress={() => setShowStartPicker(true)}
+      />
+      {showStartPicker && (
+        <DateTimePicker
+          value={startDate || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, date) => {
+            setShowStartPicker(false);
+            if (date) setStartDate(date);
+          }}
         />
-        {showStartPicker && (
-          <DateTimePicker
-            value={startDate || new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, date) => {
-              setShowStartPicker(false);
-              if (date) setStartDate(date);
-            }}
-          />
-        )}
-      </View>
+      )}
 
-      <View>
-        <Text style={styles.label}>Fecha de fin:</Text>
-        <Button
-          title={endDate ? endDate.toDateString() : 'Seleccionar fecha de fin'}
-          onPress={() => setShowEndPicker(true)}
+      <Text style={styles.label}>Fecha de fin:</Text>
+      <Button
+        title={endDate ? endDate.toDateString() : 'Seleccionar fecha de fin'}
+        onPress={() => setShowEndPicker(true)}
+      />
+      {showEndPicker && (
+        <DateTimePicker
+          value={endDate || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(event, date) => {
+            setShowEndPicker(false);
+            if (date) setEndDate(date);
+          }}
         />
-        {showEndPicker && (
-          <DateTimePicker
-            value={endDate || new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, date) => {
-              setShowEndPicker(false);
-              if (date) setEndDate(date);
-            }}
-          />
-        )}
-      </View>
+      )}
 
       <TextInput
         style={styles.input}
@@ -128,15 +132,8 @@ export default function AddBookScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20
-  },
+  container: { flex: 1, padding: 20 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
   input: {
     borderWidth: 1,
     borderColor: '#aaa',
@@ -144,12 +141,6 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 12
   },
-  picker: {
-    marginBottom: 16
-  },
-  label: {
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 6
-  }
+  picker: { marginBottom: 16 },
+  label: { fontWeight: 'bold', marginTop: 16, marginBottom: 6 }
 });

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, Picker } from 'react-native';
-import { doc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Picker } from '@react-native-picker/picker';
+
+const API_URL = 'http://192.168.1.11:3000/api';
 
 export default function BookDetailScreen({ route, navigation }) {
   const { bookId } = route.params;
@@ -12,44 +15,69 @@ export default function BookDetailScreen({ route, navigation }) {
   const [endDate, setEndDate] = useState('');
   const [comment, setComment] = useState('');
 
-  useEffect(() => {
-    const fetchBook = async () => {
-      const ref = doc(db, 'books', bookId);
-      const snap = await getDoc(ref);
-      if (snap.exists()) {
-        const data = snap.data();
-        setTitle(data.title);
-        setAuthor(data.author);
-        setStatus(data.status);
-        setStartDate(data.startDate || '');
-        setEndDate(data.endDate || '');
-        setComment(data.comment || '');
-      } else {
-        Alert.alert('Error', 'Libro no encontrado');
-        navigation.goBack();
-      }
-    };
+  const fetchBook = async () => {
+    const token = await AsyncStorage.getItem('token');
 
-    fetchBook();
-  }, []);
-
-  const handleUpdate = async () => {
     try {
-      const ref = doc(db, 'books', bookId);
-      await updateDoc(ref, {
-        title,
-        author,
-        status,
-        startDate,
-        endDate,
-        comment
+      const res = await fetch(`${API_URL}/books/${bookId}`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      Alert.alert('Libro actualizado');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al obtener datos');
+
+      setTitle(data.title);
+      setAuthor(data.author);
+      setStatus(data.status);
+      setStartDate(data.startDate || '');
+      setEndDate(data.endDate || '');
+      setComment(data.comment || '');
+    } catch (err) {
+      Alert.alert('Error', err.message);
       navigation.goBack();
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo actualizar');
     }
   };
+
+  const updateBook = async () => {
+    const token = await AsyncStorage.getItem('token');
+
+    try {
+      const res = await fetch(`${API_URL}/books/${bookId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ title, author, status, startDate, endDate, comment })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'No se pudo actualizar');
+
+      Alert.alert('Libro actualizado');
+      navigation.goBack();
+    } catch (err) {
+      Alert.alert('Error', err.message);
+    }
+  };
+
+  const deleteBook = async () => {
+    const token = await AsyncStorage.getItem('token');
+
+    try {
+      await fetch(`${API_URL}/books/${bookId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      Alert.alert('Libro eliminado');
+      navigation.goBack();
+    } catch (err) {
+      Alert.alert('Error', err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchBook();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -57,7 +85,7 @@ export default function BookDetailScreen({ route, navigation }) {
 
       <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Título" />
       <TextInput style={styles.input} value={author} onChangeText={setAuthor} placeholder="Autor" />
-      
+
       <Text style={styles.label}>Estado:</Text>
       <Picker selectedValue={status} onValueChange={setStatus} style={styles.picker}>
         <Picker.Item label="Por leer" value="por leer" />
@@ -75,30 +103,10 @@ export default function BookDetailScreen({ route, navigation }) {
         multiline
       />
 
-      <Button title="Guardar cambios" onPress={handleUpdate} />
-      <Button
-  title="Eliminar libro"
-  onPress={() => {
-    Alert.alert('¿Eliminar?', '¿Estás seguro de eliminar este libro?', [
-      { text: 'Cancelar' },
-      {
-        text: 'Sí, eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteDoc(doc(db, 'books', bookId));
-            Alert.alert('Libro eliminado');
-            navigation.goBack();
-          } catch (error) {
-            Alert.alert('Error', 'No se pudo eliminar');
-          }
-        }
-      }
-    ]);
-  }}
-  color="red"
-/>
-
+      <Button title="Guardar cambios" onPress={updateBook} />
+      <View style={{ marginTop: 10 }}>
+        <Button title="Eliminar libro" onPress={deleteBook} color="red" />
+      </View>
     </View>
   );
 }
@@ -113,12 +121,6 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 12
   },
-  picker: {
-    marginBottom: 16
-  },
-  label: {
-    marginTop: 12,
-    marginBottom: 4,
-    fontWeight: 'bold'
-  }
+  picker: { marginBottom: 16 },
+  label: { marginTop: 12, marginBottom: 4, fontWeight: 'bold' }
 });
