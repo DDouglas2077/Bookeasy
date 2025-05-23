@@ -12,7 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-const API_URL = 'http://192.168.1.11:3000/api';
+const API_URL = 'http://192.168.0.17:3000/api';
 
 export default function AddBookScreen({ navigation }) {
   const [title, setTitle] = useState('');
